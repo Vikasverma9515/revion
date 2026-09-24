@@ -14,6 +14,51 @@ reproducible. The results are simulations of stated toy worlds, not production d
 
 **Live:** https://revion-rho.vercel.app
 
+## Eval Lab (`/lab`): a live agent, LLM judges and human annotators
+
+A working evaluation system, not a mock:
+
+- **Agent:** a Groq model with tool calling. It retrieves from the knowledge base before answering, can search again, calls a
+  calculator, and cites sources as `[n]`. Every question, answer, source, tool call, latency and token count is stored.
+- **Knowledge base:** upload PDF, Markdown or text, paste text, or fetch a URL. Text is chunked (~900 characters), embedded
+  **locally** with `all-MiniLM-L6-v2` (384-d, transformers.js, no key) and stored in libSQL with a cosine vector index.
+- **Golden sets:** curated questions with reference answers. Save any chat answer to a golden set, editing it first.
+- **Rubrics:** your rules. Criteria are scored 1–5, and hard rules fail an item outright. Pass or fail is computed in code
+  (mean ≥ threshold and no rule violated), not decided by the model.
+- **Benchmark studio:** choose an agent, a golden set (the agent answers fresh) or imported sessions (stored answers are
+  judged as given), a rubric, and 1–4 **Gemini** judges.
+  - Runs are resumable: they are processed in ~40 s steps, so they survive serverless limits.
+  - Reports are stored: pass rate by judge majority, per-criterion means per judge, inter-judge kappa, latency p50/p95,
+    tokens, per-item reasons, and CSV/JSON export.
+- **Annotate:** humans label the same items blind (judge scores unlock only after labelling). The report then shows
+  judge-vs-human agreement: Cohen's kappa, the confusion matrix, and the judge's sensitivity and specificity against humans.
+  It also gives a **Rogan-Gladen corrected pass rate** with a delta-method CI, which is Problem 1 applied to your own judge.
+
+### Setup
+
+Copy `.env.example` to `.env.local` and fill it in. Add the same variables in Vercel (Project → Settings → Environment Variables):
+
+| Variable | Needed for |
+| --- | --- |
+| `GROQ_API_KEY` | the agent |
+| `GEMINI_API_KEY` | the judges |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | persistent storage on Vercel (locally, `.data/lab.db` is used when empty) |
+| `LAB_ACCESS_TOKEN` | optional; protects `/lab` and `/api/lab` so a public URL cannot spend your keys |
+
+The schema is created on first request. A default agent, a "Grounded QA" rubric and a 10-item golden set are seeded
+automatically. "Load starter knowledge" embeds the problems, the answers, the method notes and the Python code.
+
+| Code | Role |
+| --- | --- |
+| `lib/lab/db.ts` | libSQL client, schema, helpers |
+| `lib/lab/embed.ts`, `lib/lab/knowledge.ts` | local embeddings, chunking, vector search, file/URL ingestion |
+| `lib/lab/groq.ts`, `lib/lab/agent.ts` | Groq client and the tool-calling RAG agent |
+| `lib/lab/gemini.ts`, `lib/lab/judge.ts` | Gemini structured output and the rubric judge |
+| `lib/lab/runner.ts`, `lib/lab/stats.ts` | resumable benchmark runs, summaries, kappa, human agreement |
+| `lib/lab/store.ts` | typed data access for every table |
+| `app/api/lab/*`, `app/lab/*` | API routes and pages |
+| `proxy.ts` | optional access-token gate |
+
 ## Run locally
 
 ```sh
@@ -60,7 +105,7 @@ They use only the standard library.
 
 ## Architecture
 
-- Next.js App Router, TypeScript, Tailwind. Charts are plain SVG. No database, auth, env vars, secrets or analytics.
+- Next.js App Router, TypeScript, Tailwind. Charts are plain SVG. The simulation pages need no database, keys or env vars; only the Eval Lab does.
 - Closed-form numbers (estimate, CI, kappa, allocation, z-test) are computed in the browser as inputs change.
 - Simulations run in Node.js Route Handlers (`app/api/sim/*`, `runtime = 'nodejs'`, `maxDuration = 60`) and stream
   progress as Server-Sent Events, so charts fill in live.
