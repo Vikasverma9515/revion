@@ -10,8 +10,9 @@ const nextConfig: NextConfig = {
       'node_modules/**/onnxruntime-node/bin/napi-v*/win32/**',
       'node_modules/**/onnxruntime-node/bin/napi-v*/linux/arm64/**',
       'node_modules/**/onnxruntime-web/**',
-      'node_modules/**/@img/**',
-      'node_modules/**/sharp/**',
+      // transformers.js imports sharp at load time, so keep it, minus non-Linux binaries.
+      'node_modules/**/@img/*darwin*/**',
+      'node_modules/**/@img/*win32*/**',
     ],
   },
   // The starter knowledge reads the Python reference scripts from disk.
