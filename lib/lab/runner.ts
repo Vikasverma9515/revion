@@ -49,7 +49,7 @@ export async function createRun(opts: { name: string; agentId: number; rubricId:
   return id;
 }
 
-export async function step(runId: number, budgetMs = 40_000) {
+export async function step(runId: number, budgetMs = 45_000) {
   const started = Date.now();
   const r = await getRun(runId);
   if (!r) throw new Error('Unknown run.');
@@ -59,7 +59,11 @@ export async function step(runId: number, budgetMs = 40_000) {
   if (!agent || !rubric) throw new Error('The run refers to a deleted agent or rubric.');
   await run("UPDATE runs SET status = 'running', error = NULL WHERE id = ?", [runId]);
 
-  while (Date.now() - started < budgetMs) {
+  // Start another item only if one more (as slow as the slowest so far) still fits the budget,
+  // so a step stays inside the 60 s function limit.
+  let slowest = 0;
+  while (Date.now() - started + slowest < budgetMs) {
+    const itemStart = Date.now();
     const next = await one<{ id: number }>("SELECT id FROM results WHERE run_id = ? AND status = 'pending' ORDER BY position LIMIT 1", [runId]);
     if (!next) break;
     const res = (await getResult(next.id))!;
@@ -69,9 +73,9 @@ export async function step(runId: number, budgetMs = 40_000) {
         // Golden item: ask the agent now, with no chat history.
         const a = await runAgent(agent, [], res.question);
         answer = a.answer;
-        context = a.sources;
+        context = [];
         await run('UPDATE results SET answer=?, context=?, latency_ms=?, tokens_in=?, tokens_out=? WHERE id=?', [
-          a.answer, JSON.stringify(a.sources), a.latencyMs, a.tokensIn, a.tokensOut, res.id,
+          a.answer, '[]', a.latencyMs, a.tokensIn, a.tokensOut, res.id,
         ]);
       }
       const judgments = await Promise.all(
@@ -83,6 +87,7 @@ export async function step(runId: number, budgetMs = 40_000) {
       await run("UPDATE results SET status = 'failed', error = ? WHERE id = ?", [e instanceof Error ? e.message : String(e), res.id]);
     }
     await run("UPDATE runs SET done = (SELECT COUNT(*) FROM results WHERE run_id = ? AND status != 'pending') WHERE id = ?", [runId, runId]);
+    slowest = Math.max(slowest, Date.now() - itemStart);
   }
 
   const left = await one<{ n: number }>("SELECT COUNT(*) AS n FROM results WHERE run_id = ? AND status = 'pending'", [runId]);
@@ -143,3 +148,19 @@ export function summarize(results: Result[], judges: string[], criteria: string[
   };
 }
 
+
+/**
+ * Re-queue items whose judge calls failed (e.g. a model was overloaded).
+ * Answers are kept, so only the judges run again.
+ */
+export async function retryFailed(runId: number) {
+  const results = await listResults(runId);
+  const failed = results.filter((r) => r.status === 'failed' || r.judgments.some((j) => j.error));
+  for (const r of failed) {
+    await run("UPDATE results SET status = 'pending', error = NULL, judgments = NULL WHERE id = ?", [r.id]);
+  }
+  if (failed.length) {
+    await run("UPDATE runs SET status = 'running', summary = NULL, finished_at = NULL, done = (SELECT COUNT(*) FROM results WHERE run_id = ? AND status != 'pending') WHERE id = ?", [runId, runId]);
+  }
+  return { requeued: failed.length };
+}

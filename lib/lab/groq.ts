@@ -41,7 +41,7 @@ export async function groqChat(opts: {
         tools: opts.tools?.length ? opts.tools : undefined,
         tool_choice: opts.tools?.length ? 'auto' : undefined,
         temperature: opts.temperature ?? 0.2,
-        max_completion_tokens: opts.maxTokens ?? 1500,
+        max_completion_tokens: opts.maxTokens ?? 4096,
       }),
     },
     'Groq',

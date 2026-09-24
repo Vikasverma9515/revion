@@ -24,9 +24,8 @@ export const NAV: { name: string; items: NavItem[] }[] = [
     name: 'Eval Lab · live system',
     items: [
       { href: '/lab', name: 'Dashboard', description: 'Setup status, activity and recent benchmark runs.' },
-      { href: '/lab/chat', name: 'Agent chat', description: 'Ask the RAG agent; every question and answer is stored.' },
-      { href: '/lab/knowledge', name: 'Knowledge base', description: 'Upload documents and URLs; local embeddings in libSQL.' },
-      { href: '/lab/sessions', name: 'Sessions', description: 'Stored conversations with sources, tools and latency.' },
+      { href: '/lab/chat', name: 'Agent chat', description: 'Ask the agent; every question and answer is stored.' },
+      { href: '/lab/sessions', name: 'Sessions', description: 'Stored conversations with tool calls, latency and tokens.' },
       { href: '/lab/golden', name: 'Golden sets', description: 'Curated questions with edited reference answers.' },
       { href: '/lab/agents', name: 'Agents & rubrics', description: 'Agent settings and judging rules.' },
       { href: '/lab/studio', name: 'Benchmark studio', description: 'Run LLM judges over golden sets or sessions; stored reports.' },

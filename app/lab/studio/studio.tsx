@@ -8,8 +8,6 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useModels } from '../agents/editors';
 
-const DEFAULT_JUDGES = ['gemini-2.5-flash'];
-
 export function Studio() {
   const router = useRouter();
   const agents = useApi<Agent[]>('/api/lab/agents');
@@ -25,7 +23,7 @@ export function Studio() {
   const [sourceKind, setSourceKind] = useState<'dataset' | 'sessions'>('dataset');
   const [datasetId, setDatasetId] = useState<number | null>(null);
   const [picked, setPicked] = useState<number[] | 'all'>('all');
-  const [judges, setJudges] = useState<string[]>(DEFAULT_JUDGES);
+  const [judges, setJudges] = useState<string[]>(['gemini-2.5-flash']);
   const [limit, setLimit] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,7 +36,8 @@ export function Studio() {
   const agent = agentId ?? agents.data![0]?.id;
   const rubric = rubricId ?? rubrics.data![0]?.id;
   const dataset = datasetId ?? datasets.data![0]?.id;
-  const judgeOptions = [...new Set([...DEFAULT_JUDGES, ...judges, ...(models.data?.gemini.models ?? [])])];
+  // Suggested judges first, then the key's Gemini flash / pro text models.
+  const judgeOptions = [...new Set([...(models.data?.defaultJudges ?? []), ...judges, ...(models.data?.gemini.models ?? []).filter((m) => /^gemini-[\d.]+-(flash|pro)(-lite)?$/.test(m))])];
 
   const start = async () => {
     setBusy(true);

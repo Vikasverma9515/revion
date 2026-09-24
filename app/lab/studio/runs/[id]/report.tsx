@@ -5,6 +5,7 @@ import { Legend, S1, S2, S3, type SeriesStyle } from '#/ui/charts';
 import { Button } from '#/ui/controls';
 import { Badge, ErrorNote, Loading } from '#/ui/form';
 import { Formula, Stat } from '#/ui/stat';
+import { Markdown } from '#/ui/markdown';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -87,6 +88,17 @@ export function Report({ id }: { id: number }) {
     URL.revokeObjectURL(url);
   };
 
+  const failedCount = results.filter((r) => r.status === 'failed' || r.judgments.some((j) => j.error)).length;
+  const retry = async () => {
+    try {
+      await api(`/api/lab/runs/${id}/retry`, { method: 'POST' });
+      await report.reload();
+      drive();
+    } catch (e) {
+      setStepError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const remove = async () => {
     if (!confirm('Delete this run, its results and annotations?')) return;
     await api(`/api/lab/runs/${id}`, { method: 'DELETE' });
@@ -129,6 +141,11 @@ export function Report({ id }: { id: number }) {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
+          {run.status === 'done' && failedCount > 0 && (
+            <Button onClick={retry} disabled={stepping}>
+              Re-run {failedCount} failed judgment{failedCount > 1 ? 's' : ''}
+            </Button>
+          )}
           <Button kind="quiet" onClick={() => exportFile('csv')}>
             Export CSV
           </Button>
@@ -290,7 +307,10 @@ function ResultRow({ r, criteria, human }: { r: Result; criteria: string[]; huma
           {r.error && <ErrorNote>{r.error}</ErrorNote>}
           <Block label="Question">{r.question}</Block>
           {r.reference && <Block label="Reference">{r.reference}</Block>}
-          <Block label={`Agent answer · ${fmtMs(r.latency_ms)}`}>{r.answer ?? '(not generated yet)'}</Block>
+          <div>
+            <div className="mb-1 text-xs font-medium text-gray-500">Agent answer · {fmtMs(r.latency_ms)}</div>
+            {r.answer ? <Markdown>{r.answer}</Markdown> : <p className="text-gray-500">(not generated yet)</p>}
+          </div>
           {r.judgments.map((j) => (
             <div key={j.judge} className="rounded-md border border-gray-800 p-3">
               <div className="mb-2 flex flex-wrap items-center gap-2">

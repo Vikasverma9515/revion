@@ -42,19 +42,17 @@ export async function judge(opts: {
   const { rubric } = opts;
   const system = [
     'You are a careful, strict evaluator of answers produced by an AI assistant.',
-    'Judge only what is on the page. Do not reward length or confident tone. Do not assume facts that are not in the sources or the reference.',
+    'Judge only what is on the page. Do not reward length or confident tone. Do not assume facts that are not in the question or the reference.',
     SCALE,
     'Return one entry per criterion, using the exact criterion names given.',
   ].join('\n\n');
-  const context = opts.context.length
-    ? opts.context.map((s) => `[${s.n}] (${s.title}) ${s.text.slice(0, 1500)}`).join('\n\n').slice(0, 12_000)
-    : '(the assistant retrieved no sources)';
+  const context = opts.context.map((s) => `[${s.n}] (${s.title}) ${s.text.slice(0, 1500)}`).join('\n\n').slice(0, 12_000);
   const prompt = [
     `## Criteria\n${rubric.criteria.map((c) => `- ${c.name}: ${c.description}`).join('\n')}`,
     rubric.rules.trim() ? `## Hard rules (list each one the answer violates in rule_violations)\n${rubric.rules.trim()}` : '## Hard rules\n(none)',
     `## Question\n${opts.question}`,
-    opts.reference ? `## Reference answer (treat as correct)\n${opts.reference}` : '## Reference answer\n(none provided; judge correctness against the sources and general knowledge)',
-    `## Sources the assistant retrieved\n${context}`,
+    opts.reference ? `## Reference answer (treat as correct)\n${opts.reference}` : '## Reference answer\n(none provided; judge correctness against your own knowledge)',
+    ...(context ? [`## Sources the assistant retrieved\n${context}`] : []),
     `## Assistant's answer\n${opts.answer}`,
   ].join('\n\n');
 

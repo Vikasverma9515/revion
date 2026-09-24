@@ -1,37 +1,18 @@
 'use client';
-import { api, fmtPct, useApi } from '#/lib/lab/client';
+import { fmtPct, useApi } from '#/lib/lab/client';
 import type { Run } from '#/lib/lab/store';
-import { Button } from '#/ui/controls';
-import { Badge, Card, ErrorNote, Loading } from '#/ui/form';
+import { Badge, ErrorNote, Loading } from '#/ui/form';
 import { Stat } from '#/ui/stat';
 import Link from 'next/link';
-import { useState } from 'react';
 
 type Status = {
-  setup: { groq: boolean; gemini: boolean; turso: boolean; ephemeralDb: boolean; protected: boolean };
+  setup: { groq: boolean; gemini: boolean; ephemeralDb: boolean; protected: boolean };
   counts: Record<string, number>;
 };
 
 export function Dashboard() {
   const status = useApi<Status>('/api/lab/status');
   const runs = useApi<Run[]>('/api/lab/runs');
-  const [seeding, setSeeding] = useState(false);
-  const [seedMsg, setSeedMsg] = useState<string | null>(null);
-
-  const loadStarter = async () => {
-    setSeeding(true);
-    setSeedMsg(null);
-    try {
-      const r = await api<{ added: number }>('/api/lab/knowledge/starter', { method: 'POST' });
-      setSeedMsg(`Added ${r.added} documents.`);
-      status.reload();
-    } catch (e) {
-      setSeedMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   if (status.loading && !status.data) return <Loading />;
   if (status.error) return <ErrorNote>{status.error}</ErrorNote>;
   const s = status.data!;
@@ -47,40 +28,21 @@ export function Dashboard() {
           <SetupItem ok={s.setup.groq} label="Agent LLM (Groq)" missing="Set GROQ_API_KEY" />
           <SetupItem ok={s.setup.gemini} label="Judge LLM (Gemini)" missing="Set GEMINI_API_KEY" />
           <SetupItem
-            ok={s.setup.turso}
-            label="Database (Turso libSQL)"
-            missing={s.setup.ephemeralDb ? 'Using /tmp: data is lost between cold starts. Set TURSO_DATABASE_URL' : 'Using a local libSQL file (.data/lab.db)'}
-            warnOnly={!s.setup.ephemeralDb}
+            ok={!s.setup.ephemeralDb}
+            label="Database (local SQLite file)"
+            missing="On Vercel the file lives in /tmp: it is kept while the server is warm and reset after a cold start. Fine for a demo."
+            warnOnly
           />
-          <SetupItem ok label="Embeddings (local all-MiniLM-L6-v2, 384-d)" missing="" />
           <SetupItem ok={s.setup.protected} label="Access token on /lab" missing="Open to anyone with the URL. Set LAB_ACCESS_TOKEN" warnOnly />
         </ul>
       </section>
 
       <section aria-label="Counts" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Documents" value={c.documents} sub={`${c.chunks} chunks`} />
+        <Stat label="Agents" value={c.agents} />
         <Stat label="Sessions" value={c.sessions} sub={`${c.answers} answers`} />
         <Stat label="Golden items" value={c.golden} />
         <Stat label="Benchmark runs" value={c.runs} sub={`${c.annotations} human labels`} />
       </section>
-
-      {c.documents === 0 && (
-        <Card className="flex flex-col gap-3">
-          <p className="text-sm text-gray-300">
-            The knowledge base is empty. Load the starter documents (the two problems, the answers, the method notes and the Python
-            reference code), or add your own on the Knowledge page. The first load downloads the embedding model (about 23 MB).
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={loadStarter} disabled={seeding}>
-              {seeding ? 'Embedding…' : 'Load starter knowledge'}
-            </Button>
-            <Link href="/lab/knowledge" className="text-sm text-accent underline">
-              Add your own documents
-            </Link>
-          </div>
-          {seedMsg && <p className="text-sm text-gray-400">{seedMsg}</p>}
-        </Card>
-      )}
 
       <section aria-labelledby="flow" className="flex flex-col gap-3">
         <h2 id="flow" className="text-base font-semibold text-gray-100">
@@ -88,7 +50,7 @@ export function Dashboard() {
         </h2>
         <ol className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           {[
-            ['1. Ask', '/lab/chat', 'Chat with the agent. It retrieves from the knowledge base, cites sources, and stores every turn.'],
+            ['1. Ask', '/lab/chat', 'Chat with the agent. Every question, answer, tool call, latency and token count is stored.'],
             ['2. Curate', '/lab/golden', 'Save good questions to a golden set, editing the answer into a reference.'],
             ['3. Define rules', '/lab/agents', 'Write rubric criteria and hard rules for the judges.'],
             ['4. Benchmark', '/lab/studio', 'Run Gemini judges over a golden set (fresh answers) or imported sessions (stored answers).'],

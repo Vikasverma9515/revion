@@ -1,7 +1,6 @@
 // Eval Lab logic that needs no API keys or database.
 import { describe, expect, it } from 'vitest';
 import { calculate } from '#/lib/lab/agent';
-import { chunkText } from '#/lib/lab/knowledge';
 import { consensus, summarize } from '#/lib/lab/runner';
 import { cohenKappa, humanAgreement, percentile } from '#/lib/lab/stats';
 import type { Judgment, Result } from '#/lib/lab/store';
@@ -16,19 +15,6 @@ describe('calculator tool', () => {
     expect(() => calculate('process.exit()')).toThrow();
     expect(() => calculate('constructor')).toThrow();
     expect(() => calculate('"a"+1')).toThrow();
-  });
-});
-
-describe('chunking', () => {
-  it('packs paragraphs into bounded chunks and keeps all text', () => {
-    const paras = Array.from({ length: 30 }, (_, i) => `Paragraph ${i} ` + 'word '.repeat(40));
-    const chunks = chunkText(paras.join('\n\n'));
-    expect(chunks.length).toBeGreaterThan(3);
-    for (const c of chunks) expect(c.length).toBeLessThan(1400);
-    for (let i = 0; i < 30; i++) expect(chunks.some((c) => c.includes(`Paragraph ${i} `))).toBe(true);
-  });
-  it('splits one very long paragraph', () => {
-    expect(chunkText('x '.repeat(3000)).length).toBeGreaterThan(3);
   });
 });
 
@@ -79,5 +65,14 @@ describe('run summary', () => {
     expect(s.interJudgeKappa).toBeCloseTo(0.4, 5);
     expect(s.tokensIn).toBe(30);
     expect(s.latencyP50).toBe(1000);
+  });
+});
+
+import { delatex } from '#/ui/markdown';
+describe('LaTeX cleanup', () => {
+  it('turns common LaTeX into plain text', () => {
+    expect(delatex('\\(\\kappa \\approx 0.645\\)')).toBe('κ ≈ 0.645');
+    expect(delatex('\\frac{0.96-0.8872}{1-0.8872}')).toBe('(0.96-0.8872)/(1-0.8872)');
+    expect(delatex('P(\\text{clean}) = 0.94')).toBe('P(clean) = 0.94');
   });
 });

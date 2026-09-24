@@ -2,10 +2,10 @@
 import { api, useApi } from '#/lib/lab/client';
 import type { Agent, Criterion, Rubric } from '#/lib/lab/store';
 import { Button, Field } from '#/ui/controls';
-import { Checkbox, ErrorNote, Loading, Select, TextArea, TextField } from '#/ui/form';
+import { ErrorNote, Loading, Select, TextArea, TextField } from '#/ui/form';
 import { useEffect, useState } from 'react';
 
-type Models = { groq: { models: string[]; error: string | null }; gemini: { models: string[]; error: string | null } };
+type Models = { groq: { models: string[]; error: string | null }; gemini: { models: string[]; error: string | null }; defaultJudges: string[] };
 
 export function useModels() {
   return useApi<Models>('/api/lab/models');
@@ -22,7 +22,7 @@ export function AgentsEditor() {
 
   useEffect(() => {
     if (current) setForm({ ...current });
-    else if (id === 'new') setForm({ name: 'New agent', model: agents.data?.[0]?.model ?? 'llama-3.3-70b-versatile', system_prompt: 'You are a helpful assistant. Answer from the knowledge base.', temperature: 0.2, top_k: 5, allow_general: 1 });
+    else if (id === 'new') setForm({ name: 'New agent', model: agents.data?.[0]?.model ?? 'openai/gpt-oss-120b', system_prompt: 'You are a helpful assistant. Be precise and concise.', temperature: 0.2, top_k: 5, allow_general: 1 });
   }, [current?.id, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
@@ -66,14 +66,7 @@ export function AgentsEditor() {
       <TextArea label="System prompt" value={form.system_prompt} onChange={(e) => setForm({ ...form, system_prompt: e.target.value })} rows={6} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Temperature" value={form.temperature} onChange={(v) => setForm({ ...form, temperature: v })} min={0} max={1.5} step={0.05} />
-        <Field label="Chunks retrieved (top-k)" value={form.top_k} onChange={(v) => setForm({ ...form, top_k: Math.round(v) })} min={1} max={20} step={1} />
       </div>
-      <Checkbox
-        label="Allow answers from general knowledge"
-        hint="Off: the agent must say it does not know when the knowledge base lacks the answer."
-        checked={!!form.allow_general}
-        onChange={(e) => setForm({ ...form, allow_general: e.target.checked ? 1 : 0 })}
-      />
       <ErrorNote>{error}</ErrorNote>
       <div className="flex items-center gap-3">
         <Button onClick={save}>{current ? 'Save agent' : 'Create agent'}</Button>

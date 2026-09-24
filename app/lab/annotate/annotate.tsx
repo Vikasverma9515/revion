@@ -3,6 +3,7 @@ import { api, useApi } from '#/lib/lab/client';
 import type { Annotation, Result, Rubric, Run } from '#/lib/lab/store';
 import { Button } from '#/ui/controls';
 import { Badge, ErrorNote, Loading, Select, TextArea, TextField } from '#/ui/form';
+import { Markdown } from '#/ui/markdown';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -131,7 +132,10 @@ function Item({ item, criteria, existing, annotator, onSaved }: { item: Result; 
     <article className="flex flex-col gap-4 rounded-lg bg-gray-900 p-4">
       <Section label="Question">{item.question}</Section>
       {item.reference && <Section label="Reference answer">{item.reference}</Section>}
-      <Section label="Agent answer">{item.answer}</Section>
+      <div>
+        <div className="mb-1 text-xs font-medium text-gray-500">Agent answer</div>
+        <Markdown>{item.answer ?? ''}</Markdown>
+      </div>
       {item.context.length > 0 && (
         <details className="text-xs text-gray-400">
           <summary className="cursor-pointer hover:text-gray-200">Sources the agent retrieved ({item.context.length})</summary>

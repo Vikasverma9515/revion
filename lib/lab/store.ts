@@ -252,8 +252,7 @@ export async function saveAnnotation(a: { result_id: number; annotator: string; 
 
 export async function counts() {
   const r = await one<Record<string, number>>(
-    `SELECT (SELECT COUNT(*) FROM agents) AS agents, (SELECT COUNT(*) FROM documents) AS documents, (SELECT COUNT(*) FROM chunks) AS chunks,
-      (SELECT COUNT(*) FROM sessions) AS sessions, (SELECT COUNT(*) FROM messages WHERE role='assistant') AS answers,
+    `SELECT (SELECT COUNT(*) FROM agents) AS agents, (SELECT COUNT(*) FROM sessions) AS sessions, (SELECT COUNT(*) FROM messages WHERE role='assistant') AS answers,
       (SELECT COUNT(*) FROM golden_items) AS golden, (SELECT COUNT(*) FROM runs) AS runs, (SELECT COUNT(*) FROM annotations) AS annotations`,
   );
   return Object.fromEntries(Object.entries(r ?? {}).map(([k, v]) => [k, Number(v)]));

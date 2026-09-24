@@ -3,6 +3,7 @@ import { api, fmtMs, useApi } from '#/lib/lab/client';
 import type { Agent, Dataset, Message, Session } from '#/lib/lab/store';
 import { Button } from '#/ui/controls';
 import { Badge, ErrorNote, Loading, Select, TextArea, TextField } from '#/ui/form';
+import { Markdown } from '#/ui/markdown';
 import clsx from 'clsx';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -119,8 +120,8 @@ export function Chat() {
         {loadingSession && <Loading label="Loading conversation…" />}
         {!loadingSession && messages.length === 0 && !pending && (
           <div className="rounded-lg border border-dashed border-gray-800 p-6 text-sm text-gray-500">
-            Ask anything. The agent searches the knowledge base first, cites what it uses, and can search again or calculate. Try:
-            &ldquo;Why does specificity dominate the interval width?&rdquo;
+            Ask anything. The agent answers with a Groq model and can use a calculator. Try: &ldquo;Estimate the true violation rate
+            in Problem 1 with a 95% CI.&rdquo;
           </div>
         )}
         <ol className="flex flex-col gap-4">
@@ -137,7 +138,7 @@ export function Chat() {
             <>
               <li className="ml-auto max-w-[85%] rounded-lg bg-accent/15 px-4 py-2.5 text-sm whitespace-pre-wrap text-gray-100">{pending}</li>
               <li>
-                <Loading label="Retrieving and answering…" />
+                <Loading label="Thinking…" />
               </li>
             </>
           )}
@@ -179,24 +180,11 @@ export function Chat() {
   );
 }
 
-/** Render [n] citations as small badges. */
-function withCitations(text: string) {
-  return text.split(/(\[\d+\])/g).map((part, i) =>
-    /^\[\d+\]$/.test(part) ? (
-      <sup key={i} className="mx-0.5 rounded bg-gray-800 px-1 font-mono text-[10px] text-accent">
-        {part.slice(1, -1)}
-      </sup>
-    ) : (
-      part
-    ),
-  );
-}
-
 function AssistantMessage({ m, question }: { m: Message; question: string }) {
   const [saving, setSaving] = useState(false);
   return (
     <li className="flex flex-col gap-2 rounded-lg bg-gray-900 px-4 py-3">
-      <div className="text-sm leading-relaxed whitespace-pre-wrap text-gray-100">{withCitations(m.content)}</div>
+      <Markdown>{m.content}</Markdown>
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <Badge>{m.model}</Badge>
         <span>{fmtMs(m.latency_ms)}</span>

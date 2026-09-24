@@ -1,4 +1,4 @@
-// libSQL (SQLite) database: Turso in production, a local file in development.
+// SQLite database (libSQL client) in a local file: .data/lab.db, or /tmp on Vercel.
 // The schema is created on first use; statements are idempotent.
 import 'server-only';
 import { createClient, type Client, type InArgs, type Row } from '@libsql/client';
@@ -6,20 +6,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config';
 
-export const EMBED_DIMS = 384;
-
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS agents (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, model TEXT NOT NULL, system_prompt TEXT NOT NULL,
     temperature REAL NOT NULL DEFAULT 0.2, top_k INTEGER NOT NULL DEFAULT 5,
     allow_general INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS documents (
-    id INTEGER PRIMARY KEY, title TEXT NOT NULL, source TEXT NOT NULL, chars INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS chunks (
-    id INTEGER PRIMARY KEY, document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-    idx INTEGER NOT NULL, text TEXT NOT NULL, embedding F32_BLOB(${EMBED_DIMS}))`,
-  `CREATE INDEX IF NOT EXISTS chunks_vec ON chunks (libsql_vector_idx(embedding, 'metric=cosine'))`,
   `CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY, agent_id INTEGER NOT NULL REFERENCES agents(id), title TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
@@ -66,9 +57,7 @@ function localUrl() {
 
 export async function db(): Promise<Client> {
   if (!client) {
-    client = config.tursoUrl
-      ? createClient({ url: config.tursoUrl, authToken: config.tursoToken })
-      : createClient({ url: localUrl() });
+    client = createClient({ url: localUrl() });
     ready = (async () => {
       await client!.execute('PRAGMA foreign_keys = ON');
       await client!.batch(SCHEMA, 'write');

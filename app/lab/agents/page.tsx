@@ -9,7 +9,7 @@ export default function Page() {
     <>
       <Boundary label="Agents" animateRerendering={false} kind="solid" color="blue" className="flex flex-col gap-8">
         <PageTitle kicker="Eval Lab" title="Agents">
-          <p>An agent is a Groq model, a system prompt and retrieval settings. Benchmarks record which agent produced each answer.</p>
+          <p>An agent is a Groq model, a system prompt and a temperature. Benchmarks record which agent produced each answer.</p>
         </PageTitle>
         <AgentsEditor />
       </Boundary>
