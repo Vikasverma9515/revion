@@ -12,7 +12,7 @@ two-problem evaluation screen:
 Every input can be changed. Every simulation is seeded (mulberry32) and the seed is shown, so runs are
 reproducible. The results are simulations of stated toy worlds, not production data.
 
-**Live:** https://revion-REPLACE-ME.vercel.app <!-- replace with the Vercel production URL -->
+**Live:** https://revion-rho.vercel.app
 
 ## Run locally
 
