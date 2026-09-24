@@ -74,5 +74,7 @@ describe('LaTeX cleanup', () => {
     expect(delatex('\\frac{0.96-0.8872}{1-0.8872}')).toBe('(0.96-0.8872)/(1-0.8872)');
     expect(delatex('P(\\text{clean}) = 0.94')).toBe('P(clean) = 0.94');
     expect(delatex('\\frac{\\text{TP}}{\\text{Actual violations}}')).toBe('(TP)/(Actual violations)');
+    expect(delatex('\\begin{aligned} a &= 1,\\\\ b &\\approx 2 \\end{aligned}')).toBe(' a = 1,  \n b ≈ 2 ');
+    expect(delatex('\\partial\\pi/\\partial p')).toBe('∂π/∂ p');
   });
 });
