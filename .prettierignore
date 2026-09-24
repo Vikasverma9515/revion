@@ -1,2 +1,4 @@
 .next
 pnpm-lock.yaml
+lib/__fixtures__
+reference

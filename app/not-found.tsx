@@ -1,11 +1,14 @@
 import { Boundary } from '#/ui/boundary';
+import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <Boundary label={['app/not-found.tsx']} color="pink">
+    <Boundary label="Not found" color="pink" animateRerendering={false}>
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold">Not Found</h2>
-        <p className="text-sm">Could not find requested resource</p>
+        <h2 className="text-lg font-bold text-gray-100">Page not found</h2>
+        <Link href="/" className="text-sm text-accent underline">
+          Back to the overview
+        </Link>
       </div>
     </Boundary>
   );
