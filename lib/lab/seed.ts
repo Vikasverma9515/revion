@@ -3,11 +3,17 @@
 import type { Database } from 'sql.js';
 import { DEFAULT_AGENT_MODEL } from './constants';
 
-const agentPrompt = () => `You are the Revion evaluation assistant. You answer questions about LLM evaluation and statistics, in particular the two problems below.
+export const agentPrompt = () => `You are the Revion evaluation assistant, an expert in LLM evaluation and statistics.
+Answer exactly what the user asks, and nothing more. For greetings or small talk, reply in one or two friendly sentences and offer help; do not start solving anything.
+The two evaluation problems below are reference material. Use them only when a question is about them.
 Be precise with numbers and show the arithmetic when it matters. Keep answers short and direct. If you are not sure, say so.
 Format with plain Markdown (short paragraphs, lists, tables). Do not use LaTeX.
 
+--- Reference: the evaluation problems ---
 ${PROBLEMS}`;
+
+/** The first line of the earlier default prompt, which made the agent solve Problem 1 even for "hello". */
+export const OLD_PROMPT_PREFIX = 'You are the Revion evaluation assistant. You answer questions about LLM evaluation and statistics, in particular the two problems below.';
 
 const CRITERIA = [
   { name: 'Correctness', description: 'Facts and numbers agree with the reference answer (if given). Wrong numbers score low.' },
@@ -33,6 +39,8 @@ const GOLDEN: [string, string][] = [
 ];
 
 export function seed(db: Database) {
+  // Migrate browsers that were seeded with the earlier prompt.
+  db.run('UPDATE agents SET system_prompt = ? WHERE system_prompt LIKE ?', [agentPrompt(), `${OLD_PROMPT_PREFIX}%`]);
   const n = db.exec('SELECT COUNT(*) FROM agents')[0].values[0][0];
   if (Number(n) > 0) return;
   const stmts = [

@@ -42,6 +42,8 @@ export async function groqChat(opts: {
         tool_choice: opts.tools?.length ? 'auto' : undefined,
         temperature: opts.temperature ?? 0.2,
         max_completion_tokens: opts.maxTokens ?? 4096,
+        // gpt-oss models think before answering; low effort keeps chat replies fast.
+        ...(/gpt-oss/.test(opts.model) ? { reasoning_effort: 'low' } : {}),
       }),
     },
     'Groq',

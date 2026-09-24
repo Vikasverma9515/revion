@@ -73,5 +73,6 @@ describe('LaTeX cleanup', () => {
     expect(delatex('\\(\\kappa \\approx 0.645\\)')).toBe('κ ≈ 0.645');
     expect(delatex('\\frac{0.96-0.8872}{1-0.8872}')).toBe('(0.96-0.8872)/(1-0.8872)');
     expect(delatex('P(\\text{clean}) = 0.94')).toBe('P(clean) = 0.94');
+    expect(delatex('\\frac{\\text{TP}}{\\text{Actual violations}}')).toBe('(TP)/(Actual violations)');
   });
 });

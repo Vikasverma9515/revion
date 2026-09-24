@@ -12,9 +12,10 @@ const SYMBOLS: Record<string, string> = {
 /** Models sometimes answer in LaTeX; turn the common bits into readable plain text. */
 export function delatex(md: string) {
   let s = md.replace(/\\\[([\s\S]*?)\\\]/g, (_, m) => `\n\n${m.trim()}\n\n`).replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+  // Unwrap \text{…} first so nested fractions such as \frac{\text{TP}}{…} can match.
+  s = s.replace(/\\(?:text|mathrm|mathbf|operatorname|boxed)\{([^{}]*)\}/g, '$1');
   for (let i = 0; i < 3; i++) s = s.replace(/\\(?:d|t)?frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1)/($2)');
   s = s
-    .replace(/\\(?:text|mathrm|mathbf|operatorname|boxed)\{([^{}]*)\}/g, '$1')
     .replace(/\\sqrt\{([^{}]*)\}/g, '√($1)')
     .replace(/\\([A-Za-z]+|[,;!])/g, (m, name) => SYMBOLS[name] ?? m)
     .replace(/\^\{([^{}]*)\}/g, '^$1')
