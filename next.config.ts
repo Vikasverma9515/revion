@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Keep functions under Vercel's size limit: only the Linux x64 ONNX runtime is needed there.
   outputFileTracingExcludes: {
     '*': [
+      '.data/**',
       'node_modules/**/onnxruntime-node/bin/napi-v*/darwin/**',
       'node_modules/**/onnxruntime-node/bin/napi-v*/win32/**',
       'node_modules/**/onnxruntime-node/bin/napi-v*/linux/arm64/**',
@@ -18,6 +19,13 @@ const nextConfig: NextConfig = {
   // The starter knowledge reads the Python reference scripts from disk.
   outputFileTracingIncludes: {
     '/api/lab/knowledge/starter': ['./reference/python/*.py'],
+    // The ONNX runtime loads its native binding by computed path, which tracing cannot see.
+    '/api/lab/**': [
+      './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/package.json',
+      './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/dist/**',
+      './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v*/linux/x64/**',
+      './node_modules/.pnpm/onnxruntime-common@*/node_modules/onnxruntime-common/**',
+    ],
   },
   experimental: {
     // Vercel restores .next/cache between deploys; with this on, a restored

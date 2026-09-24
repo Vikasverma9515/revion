@@ -12,6 +12,8 @@ let extractor: Promise<Extractor> | null = null;
 function load(): Promise<Extractor> {
   if (!extractor) {
     extractor = (async () => {
+      // Imported explicitly so deployment file tracing includes the native runtime.
+      await import('onnxruntime-node');
       const { pipeline, env } = await import('@huggingface/transformers');
       env.cacheDir = config.onVercel ? '/tmp/hf-cache' : path.join(process.cwd(), '.data', 'hf-cache');
       return (await pipeline('feature-extraction', EMBED_MODEL, { dtype: 'q8' })) as unknown as Extractor;
