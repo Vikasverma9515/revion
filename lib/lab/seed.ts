@@ -1,8 +1,7 @@
 // First-run data: a default agent, rubric and golden dataset, so the lab is
 // usable immediately.
-import 'server-only';
-import type { Client } from '@libsql/client';
-import { DEFAULT_AGENT_MODEL } from './config';
+import type { Database } from 'sql.js';
+import { DEFAULT_AGENT_MODEL } from './constants';
 
 const agentPrompt = () => `You are the Revion evaluation assistant. You answer questions about LLM evaluation and statistics, in particular the two problems below.
 Be precise with numbers and show the arithmetic when it matters. Keep answers short and direct. If you are not sure, say so.
@@ -33,18 +32,16 @@ const GOLDEN: [string, string][] = [
   ['How much clustering (design effect) would make the 8% to 11% change non-significant?', 'z shrinks by sqrt(deff); significance is lost when deff exceeds (3.96/1.96)^2, about 4.1.'],
 ];
 
-export async function seed(db: Client) {
-  const n = await db.execute('SELECT COUNT(*) AS n FROM agents');
-  if (Number(n.rows[0].n) > 0) return;
-  await db.batch(
-    [
+export function seed(db: Database) {
+  const n = db.exec('SELECT COUNT(*) FROM agents')[0].values[0][0];
+  if (Number(n) > 0) return;
+  const stmts = [
       { sql: 'INSERT INTO agents (name, model, system_prompt, temperature, top_k, allow_general) VALUES (?,?,?,?,?,?)', args: ['Revion eval assistant', DEFAULT_AGENT_MODEL, agentPrompt(), 0.2, 5, 1] },
       { sql: 'INSERT INTO rubrics (name, criteria, rules, pass_threshold) VALUES (?,?,?,?)', args: ['Grounded QA', JSON.stringify(CRITERIA), RULES, 4] },
       { sql: 'INSERT INTO datasets (name, description) VALUES (?,?)', args: ['Evaluation screen v1', 'Reference answers for the two-problem evaluation screen.'] },
       ...GOLDEN.map(([q, r]) => ({ sql: 'INSERT INTO golden_items (dataset_id, question, reference, tags) VALUES (1, ?, ?, ?)', args: [q, r, 'seed'] })),
-    ],
-    'write',
-  );
+  ];
+  for (const s of stmts) db.run(s.sql, s.args);
 }
 
 

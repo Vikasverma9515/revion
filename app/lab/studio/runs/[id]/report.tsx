@@ -44,16 +44,21 @@ export function Report({ id }: { id: number }) {
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Start driving an unfinished run once, when the report first loads.
   const started = useRef(false);
   useEffect(() => {
     if (!started.current && report.data && report.data.run.status !== 'done') {
       started.current = true;
       drive();
     }
+  }, [report.data?.run.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Stop after the current step when the page is left.
+  useEffect(() => {
+    cancelled.current = false;
     return () => {
       cancelled.current = true;
     };
-  }, [report.data?.run.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   if (report.loading && !report.data) return <Loading />;
   if (report.error) return <ErrorNote>{report.error}</ErrorNote>;

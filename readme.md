@@ -16,47 +16,46 @@ reproducible. The results are simulations of stated toy worlds, not production d
 
 ## Eval Lab (`/lab`): a live agent, LLM judges and human annotators
 
-A working evaluation system, not a mock:
+A working evaluation loop with real models:
 
-- **Agent:** a Groq model with tool calling. It retrieves from the knowledge base before answering, can search again, calls a
-  calculator, and cites sources as `[n]`. Every question, answer, source, tool call, latency and token count is stored.
-- **Knowledge base:** upload PDF, Markdown or text, paste text, or fetch a URL. Text is chunked (~900 characters), embedded
-  **locally** with `all-MiniLM-L6-v2` (384-d, transformers.js, no key) and stored in libSQL with a cosine vector index.
+- **Agent (Groq, default `openai/gpt-oss-120b`):** answers questions with tool calling (calculator, current time). There is no
+  retrieval; the two problems are in its system prompt. Every question, answer, tool call, latency and token count is stored.
 - **Golden sets:** curated questions with reference answers. Save any chat answer to a golden set, editing it first.
 - **Rubrics:** your rules. Criteria are scored 1–5, and hard rules fail an item outright. Pass or fail is computed in code
   (mean ≥ threshold and no rule violated), not decided by the model.
 - **Benchmark studio:** choose an agent, a golden set (the agent answers fresh) or imported sessions (stored answers are
   judged as given), a rubric, and 1–4 **Gemini** judges.
-  - Runs are resumable: they are processed in ~40 s steps, so they survive serverless limits.
-  - Reports are stored: pass rate by judge majority, per-criterion means per judge, inter-judge kappa, latency p50/p95,
-    tokens, per-item reasons, and CSV/JSON export.
-- **Annotate:** humans label the same items blind (judge scores unlock only after labelling). The report then shows
-  judge-vs-human agreement: Cohen's kappa, the confusion matrix, and the judge's sensitivity and specificity against humans.
-  It also gives a **Rogan-Gladen corrected pass rate** with a delta-method CI, which is Problem 1 applied to your own judge.
+  - Runs go one item at a time, so they can pause and resume.
+  - Reports are stored: pass rate by judge majority, per-criterion means per judge, inter-judge kappa, latency, tokens,
+    per-item reasons, CSV/JSON export, and a button to re-run failed judgments.
+- **Annotate:** humans label the same items blind (judge scores unlock only after labelling). The report shows judge-vs-human
+  agreement: Cohen's kappa, the confusion matrix, and the judge's sensitivity and specificity against humans. It also gives a
+  **Rogan-Gladen corrected pass rate**, which is Problem 1 applied to your own judge.
+
+### Where the data lives
+
+There is no external database. The lab runs **SQLite in the browser** (sql.js, WebAssembly) and saves it to IndexedDB after every
+write, so it behaves the same locally and on Vercel. The server holds only the API keys and answers two calls: run the agent,
+and run a judge. Data belongs to the browser that created it; the dashboard can download the `.sqlite` file, load one, or reset
+to the seed data (a default agent, a "Grounded QA" rubric and a 10-item golden set).
 
 ### Setup
 
-Copy `.env.example` to `.env.local` and fill it in. Add the same variables in Vercel (Project → Settings → Environment Variables):
+Copy `.env.example` to `.env.local` and add `GROQ_API_KEY` and `GEMINI_API_KEY`, locally and in Vercel. `LAB_ACCESS_TOKEN` is
+optional; when set, `/lab` and `/api/lab` require it, so a public URL cannot spend your keys.
 
-| Variable | Needed for |
-| --- | --- |
-| `GROQ_API_KEY` | the agent |
-| `GEMINI_API_KEY` | the judges |
-| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | persistent storage on Vercel (locally, `.data/lab.db` is used when empty) |
-| `LAB_ACCESS_TOKEN` | optional; protects `/lab` and `/api/lab` so a public URL cannot spend your keys |
-
-The schema is created on first request. A default agent, a "Grounded QA" rubric and a 10-item golden set are seeded
-automatically. "Load starter knowledge" embeds the problems, the answers, the method notes and the Python code.
+Free-tier Gemini keys are rate limited per model. `gemini-3.6-flash` allows only 20 requests a day, so the default judges are
+`gemini-3.5-flash-lite` and `gemini-3.1-flash-lite`. The studio lists every model the key can use.
 
 | Code | Role |
 | --- | --- |
-| `lib/lab/db.ts` | libSQL client, schema, helpers |
-| `lib/lab/embed.ts`, `lib/lab/knowledge.ts` | local embeddings, chunking, vector search, file/URL ingestion |
-| `lib/lab/groq.ts`, `lib/lab/agent.ts` | Groq client and the tool-calling RAG agent |
-| `lib/lab/gemini.ts`, `lib/lab/judge.ts` | Gemini structured output and the rubric judge |
-| `lib/lab/runner.ts`, `lib/lab/stats.ts` | resumable benchmark runs, summaries, kappa, human agreement |
-| `lib/lab/store.ts` | typed data access for every table |
-| `app/api/lab/*`, `app/lab/*` | API routes and pages |
+| `lib/lab/db.ts` | SQLite in the browser (sql.js), schema, IndexedDB persistence, export/import/reset |
+| `lib/lab/store.ts`, `lib/lab/handlers.ts` | typed data access, and the local `/api/lab/*` data routes |
+| `lib/lab/runner.ts`, `lib/lab/stats.ts` | benchmark runs, summaries, kappa, human agreement |
+| `lib/lab/client.ts`, `lib/lab/remote.ts` | routes data calls to the browser database and LLM calls to the server |
+| `app/api/lab/[...path]/route.ts` | server: `setup`, `models`, `answer` (agent), `judge`, `login` |
+| `lib/lab/agent.ts`, `lib/lab/groq.ts` | the Groq tool-calling agent |
+| `lib/lab/judge.ts`, `lib/lab/gemini.ts` | the Gemini rubric judge (structured JSON output) |
 | `proxy.ts` | optional access-token gate |
 
 ## Run locally

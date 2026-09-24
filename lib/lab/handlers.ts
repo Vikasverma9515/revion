@@ -1,32 +1,27 @@
-// Every /api/lab endpoint, dispatched from one route handler
-// (app/api/lab/[...path]/route.ts). One function means one warm instance
-// on Vercel, so all endpoints see the same local SQLite file.
-import 'server-only';
-import { runAgent } from './agent';
-import { HttpError, num, str } from './api';
-import { config, DEFAULT_JUDGE_MODELS, setupStatus } from './config';
-import { geminiModels } from './gemini';
-import { groqModels } from './groq';
-import { consensus, createRun, retryFailed, step } from './runner';
-import { humanAgreement } from './stats';
+// The lab's data API, served in the browser from the local SQLite database.
+// Pages call api('/api/lab/…'); lib/lab/client.ts sends the paths below here
+// and only LLM work (answer, judge, models, setup) to the server.
+import { askAgent } from './remote';
+import { createRun, retryFailed, step } from './runner';
+import { consensus, humanAgreement } from './stats';
 import * as db from './store';
+import { HttpError, num, str } from './validate';
 
 type Handler = (req: Request, id: number) => Promise<unknown>;
 type Route = { method: string; path: RegExp; fn: Handler };
 
 const body = (req: Request) => req.json().catch(() => ({}));
 const q = (req: Request, key: string) => new URL(req.url).searchParams.get(key);
-const settle = async (f: () => Promise<string[]>) => {
-  try {
-    return { models: await f(), error: null };
-  } catch (e) {
-    return { models: [], error: e instanceof Error ? e.message : String(e) };
-  }
-};
 
 export const ROUTES: Route[] = [
-  { method: 'GET', path: /^status$/, fn: async () => ({ setup: setupStatus(), counts: await db.counts() }) },
-  { method: 'GET', path: /^models$/, fn: async () => ({ groq: await settle(groqModels), gemini: await settle(geminiModels), defaultJudges: DEFAULT_JUDGE_MODELS }) },
+  {
+    method: 'GET',
+    path: /^status$/,
+    fn: async () => {
+      const setup = await fetch('/api/lab/setup').then((r) => r.json()).catch(() => ({ groq: false, gemini: false, protected: false }));
+      return { setup, counts: await db.counts() };
+    },
+  },
 
   // Agents
   { method: 'GET', path: /^agents$/, fn: () => db.listAgents() },
@@ -64,7 +59,7 @@ export const ROUTES: Route[] = [
       }
       const history = sessionId ? (await db.listMessages(sessionId)).map((m) => ({ role: m.role, content: m.content })) : [];
       // Call the model first so a failure does not leave a half-written session.
-      const a = await runAgent(agent, history, question);
+      const a = await askAgent(agent, history, question);
       if (!sessionId) sessionId = await db.createSession(agent.id, question);
       const userId = await db.addMessage({ session_id: sessionId, role: 'user', content: question, context: [], trace: [], model: null, latency_ms: null, tokens_in: null, tokens_out: null });
       const assistantId = await db.addMessage({
@@ -222,16 +217,13 @@ export const ROUTES: Route[] = [
     },
   },
 
-  // Access token (only meaningful when LAB_ACCESS_TOKEN is set)
-  {
-    method: 'POST',
-    path: /^login$/,
-    fn: async (req) => {
-      const { token } = await body(req);
-      if (!config.accessToken || token !== config.accessToken) throw new HttpError(401, 'Wrong access token.');
-      const res = Response.json({ ok: true });
-      res.headers.append('Set-Cookie', `lab_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${60 * 60 * 24 * 30}`);
-      return res;
-    },
-  },
 ];
+
+/** Run a local route; throws on unknown paths and on handler errors. */
+export async function dispatch(method: string, path: string, req: Request) {
+  for (const r of ROUTES) {
+    const m = r.method === method && path.match(r.path);
+    if (m) return r.fn(req, Number(m[1] ?? 0));
+  }
+  throw new HttpError(404, `No such endpoint: ${method} /api/lab/${path}`);
+}

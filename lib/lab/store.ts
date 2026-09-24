@@ -1,5 +1,4 @@
-// Typed data access for every table. Plain SQL, no ORM.
-import 'server-only';
+// Typed data access for every table. Plain SQL, no ORM (runs in the browser).
 import { all, json, one, run } from './db';
 
 export type Agent = {
@@ -140,7 +139,11 @@ export const getSession = (id: number) =>
   one<Session>('SELECT s.*, a.name AS agent_name FROM sessions s JOIN agents a ON a.id = s.agent_id WHERE s.id = ?', [id]);
 export const createSession = async (agentId: number, title: string) =>
   (await run('INSERT INTO sessions (agent_id, title) VALUES (?, ?)', [agentId, title.slice(0, 120)])).id;
-export const deleteSession = (id: number) => run('DELETE FROM sessions WHERE id = ?', [id]);
+// Children are deleted explicitly rather than relying on ON DELETE CASCADE.
+export async function deleteSession(id: number) {
+  await run('DELETE FROM messages WHERE session_id = ?', [id]);
+  await run('DELETE FROM sessions WHERE id = ?', [id]);
+}
 
 type MessageRow = Omit<Message, 'context' | 'trace'> & { context: string | null; trace: string | null };
 const toMessage = (r: MessageRow): Message => ({ ...r, context: json(r.context, []), trace: json(r.trace, []) });
@@ -177,7 +180,10 @@ export const listDatasets = () =>
 export const getDataset = (id: number) => one<Dataset>('SELECT * FROM datasets WHERE id = ?', [id]);
 export const createDataset = async (name: string, description = '') =>
   (await run('INSERT INTO datasets (name, description) VALUES (?, ?)', [name, description])).id;
-export const deleteDataset = (id: number) => run('DELETE FROM datasets WHERE id = ?', [id]);
+export async function deleteDataset(id: number) {
+  await run('DELETE FROM golden_items WHERE dataset_id = ?', [id]);
+  await run('DELETE FROM datasets WHERE id = ?', [id]);
+}
 export const listGolden = (datasetId: number) =>
   all<GoldenItem>('SELECT * FROM golden_items WHERE dataset_id = ? ORDER BY id', [datasetId]);
 export async function saveGolden(g: { id?: number; dataset_id: number; question: string; reference: string; tags?: string; source_message_id?: number | null }) {
@@ -225,7 +231,11 @@ export const getRun = async (id: number) => {
   );
   return r ? toRun(r) : null;
 };
-export const deleteRun = (id: number) => run('DELETE FROM runs WHERE id = ?', [id]);
+export async function deleteRun(id: number) {
+  await run('DELETE FROM annotations WHERE result_id IN (SELECT id FROM results WHERE run_id = ?)', [id]);
+  await run('DELETE FROM results WHERE run_id = ?', [id]);
+  await run('DELETE FROM runs WHERE id = ?', [id]);
+}
 
 type ResultRow = Omit<Result, 'context' | 'judgments'> & { context: string | null; judgments: string | null };
 const toResult = (r: ResultRow): Result => ({ ...r, context: json(r.context, []), judgments: json(r.judgments, []) });

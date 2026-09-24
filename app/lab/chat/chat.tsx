@@ -44,7 +44,9 @@ export function Chat() {
       .finally(() => setLoadingSession(false));
   }, [sessionId]);
 
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [messages.length, pending]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages.length, pending]);
 
   const openSession = (id: number | null) => {
     setSessionId(id);

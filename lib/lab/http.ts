@@ -7,7 +7,8 @@ export async function fetchRetry(url: string, init: RequestInit, label: string, 
     const res = await fetch(url, { ...init, signal: AbortSignal.timeout(45_000) });
     if (res.ok) return res;
     last = `${res.status} ${errorMessage(await res.text())}`;
-    if (res.status !== 429 && res.status < 500) break;
+    // Retry rate limits and overloads, but not a daily quota: it will not reset in seconds.
+    if ((res.status !== 429 && res.status < 500) || /PerDay/.test(last)) break;
     const after = Number(res.headers.get('retry-after'));
     const wait = Math.min(8_000, Number.isFinite(after) && after > 0 ? after * 1000 : 1000 * 2 ** attempt);
     await new Promise((r) => setTimeout(r, wait));
@@ -19,6 +20,11 @@ export async function fetchRetry(url: string, init: RequestInit, label: string, 
 function errorMessage(body: string) {
   try {
     const e = JSON.parse(body).error;
+    // Gemini names the exhausted quota (e.g. requests per day on the free tier).
+    const quota = (e?.details ?? [])
+      .flatMap((d: { violations?: { quotaId?: string; quotaValue?: string }[] }) => d.violations ?? [])
+      .map((v: { quotaId?: string; quotaValue?: string }) => `${v.quotaId} = ${v.quotaValue}`)[0];
+    if (quota) return `quota exceeded: ${quota}`;
     return String(e?.message ?? e ?? body).slice(0, 300);
   } catch {
     return body.slice(0, 300);

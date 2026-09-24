@@ -4,9 +4,11 @@ import type { Run } from '#/lib/lab/store';
 import { Badge, ErrorNote, Loading } from '#/ui/form';
 import { Stat } from '#/ui/stat';
 import Link from 'next/link';
+import { useRef, useState } from 'react';
+import { Button } from '#/ui/controls';
 
 type Status = {
-  setup: { groq: boolean; gemini: boolean; ephemeralDb: boolean; protected: boolean };
+  setup: { groq: boolean; gemini: boolean; protected: boolean };
   counts: Record<string, number>;
 };
 
@@ -27,12 +29,7 @@ export function Dashboard() {
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <SetupItem ok={s.setup.groq} label="Agent LLM (Groq)" missing="Set GROQ_API_KEY" />
           <SetupItem ok={s.setup.gemini} label="Judge LLM (Gemini)" missing="Set GEMINI_API_KEY" />
-          <SetupItem
-            ok={!s.setup.ephemeralDb}
-            label="Database (local SQLite file)"
-            missing="On Vercel the file lives in /tmp: it is kept while the server is warm and reset after a cold start. Fine for a demo."
-            warnOnly
-          />
+          <SetupItem ok label="Database: SQLite in this browser (saved to IndexedDB)" missing="" />
           <SetupItem ok={s.setup.protected} label="Access token on /lab" missing="Open to anyone with the URL. Set LAB_ACCESS_TOKEN" warnOnly />
         </ul>
       </section>
@@ -43,6 +40,8 @@ export function Dashboard() {
         <Stat label="Golden items" value={c.golden} />
         <Stat label="Benchmark runs" value={c.runs} sub={`${c.annotations} human labels`} />
       </section>
+
+      <DataTools onChange={status.reload} />
 
       <section aria-labelledby="flow" className="flex flex-col gap-3">
         <h2 id="flow" className="text-base font-semibold text-gray-100">
@@ -112,5 +111,82 @@ function SetupItem({ ok, label, missing, warnOnly }: { ok: boolean; label: strin
         {!ok && missing && <div className="text-xs text-gray-400">{missing}</div>}
       </div>
     </li>
+  );
+}
+
+/** The database lives in this browser: download it, load one, or start over. */
+function DataTools({ onChange }: { onChange: () => void }) {
+  const file = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const withDb = async (f: (m: typeof import('#/lib/lab/db')) => Promise<string>) => {
+    try {
+      setMsg(await f(await import('#/lib/lab/db')));
+      onChange();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <section aria-labelledby="data" className="flex flex-col gap-3 rounded-lg border border-gray-800 p-4">
+      <h2 id="data" className="text-base font-semibold text-gray-100">
+        Your data
+      </h2>
+      <p className="text-sm text-gray-400">
+        Sessions, golden sets, rubrics, runs and annotations are stored in a SQLite database inside this browser. Nothing is stored on
+        the server. To move the data or share it with another annotator, download the database file and load it in another browser.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          kind="quiet"
+          onClick={() =>
+            withDb(async (m) => {
+              const bytes = await m.exportDb();
+              const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/vnd.sqlite3' }));
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `eval-lab-${new Date().toISOString().slice(0, 10)}.sqlite`;
+              a.click();
+              URL.revokeObjectURL(url);
+              return `Downloaded (${(bytes.length / 1024).toFixed(0)} KB).`;
+            })
+          }
+        >
+          Download database
+        </Button>
+        <Button kind="quiet" onClick={() => file.current?.click()}>
+          Load database file
+        </Button>
+        <input
+          ref={file}
+          type="file"
+          accept=".sqlite,.db"
+          className="hidden"
+          aria-label="Database file to load"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f && confirm('Replace the data in this browser with this file?'))
+              withDb(async (m) => {
+                await m.importDb(new Uint8Array(await f.arrayBuffer()));
+                return `Loaded ${f.name}.`;
+              });
+            e.target.value = '';
+          }}
+        />
+        <Button
+          kind="quiet"
+          className="text-bad"
+          onClick={() => {
+            if (confirm('Delete all lab data in this browser and start from the seed data?'))
+              withDb(async (m) => {
+                await m.resetDb();
+                return 'Reset to the seed data.';
+              });
+          }}
+        >
+          Reset
+        </Button>
+        {msg && <span role="status" className="text-sm text-gray-300">{msg}</span>}
+      </div>
+    </section>
   );
 }

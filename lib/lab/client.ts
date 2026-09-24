@@ -1,17 +1,28 @@
 'use client';
-// Browser-side helpers for the lab API.
+// Browser-side API for the lab. Data paths are answered by the local SQLite
+// database (lib/lab/handlers.ts); LLM paths go to the server, which holds the keys.
 import { useCallback, useEffect, useState } from 'react';
+
+const SERVER_PATHS = /^\/api\/lab\/(setup|models|answer|judge|login)(\?|$)/;
 
 export async function api<T = unknown>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const res = await fetch(path, {
+  const request: RequestInit = {
     ...rest,
     headers: json !== undefined ? { 'Content-Type': 'application/json', ...rest.headers } : rest.headers,
     body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
-  return data as T;
+  };
+  if (SERVER_PATHS.test(path)) {
+    const res = await fetch(path, request);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
+    return data as T;
+  }
+  const { dispatch } = await import('./handlers');
+  const url = new URL(path, window.location.origin);
+  const method = (request.method ?? 'GET').toUpperCase();
+  const out = await dispatch(method, url.pathname.replace(/^\/api\/lab\//, ''), new Request(url, { ...request, method }));
+  return (out ?? { ok: true }) as T;
 }
 
 /** GET a path, with loading and error state and a reload function. */

@@ -14,8 +14,7 @@ export default function Page() {
           saved from that answer.
         </p>
         <p>
-          Runs are processed in steps of about 40 seconds and stored as they go, so a long run survives time limits and resumes where it
-          stopped.
+          Runs are processed one item at a time and stored as they go, so a run can be paused and resumes where it stopped.
         </p>
       </PageTitle>
       <Studio />

@@ -5,7 +5,7 @@ import { Button } from '#/ui/controls';
 import { Badge, Checkbox, ErrorNote, Loading, Select, TextField } from '#/ui/form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useModels } from '../agents/editors';
 
 export function Studio() {
@@ -23,7 +23,12 @@ export function Studio() {
   const [sourceKind, setSourceKind] = useState<'dataset' | 'sessions'>('dataset');
   const [datasetId, setDatasetId] = useState<number | null>(null);
   const [picked, setPicked] = useState<number[] | 'all'>('all');
-  const [judges, setJudges] = useState<string[]>(['gemini-2.5-flash']);
+  const [judges, setJudges] = useState<string[]>([]);
+  const [touchedJudges, setTouchedJudges] = useState(false);
+  // Start from the suggested judges once the model list arrives.
+  useEffect(() => {
+    if (!touchedJudges && models.data?.defaultJudges) setJudges(models.data.defaultJudges);
+  }, [models.data, touchedJudges]);
   const [limit, setLimit] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,7 +61,10 @@ export function Studio() {
     }
   };
 
-  const toggleJudge = (m: string) => setJudges((j) => (j.includes(m) ? j.filter((x) => x !== m) : j.length >= 4 ? j : [...j, m]));
+  const toggleJudge = (m: string) => {
+    setTouchedJudges(true);
+    setJudges((j) => (j.includes(m) ? j.filter((x) => x !== m) : j.length >= 4 ? j : [...j, m]));
+  };
 
   return (
     <div className="flex flex-col gap-8">

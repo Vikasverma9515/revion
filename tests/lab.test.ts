@@ -1,8 +1,7 @@
 // Eval Lab logic that needs no API keys or database.
 import { describe, expect, it } from 'vitest';
 import { calculate } from '#/lib/lab/agent';
-import { consensus, summarize } from '#/lib/lab/runner';
-import { cohenKappa, humanAgreement, percentile } from '#/lib/lab/stats';
+import { cohenKappa, consensus, humanAgreement, percentile, summarize } from '#/lib/lab/stats';
 import type { Judgment, Result } from '#/lib/lab/store';
 
 describe('calculator tool', () => {
