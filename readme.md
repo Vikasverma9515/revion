@@ -1,121 +1,269 @@
-# Revion evaluation simulations
+<div align="center">
 
-A small site that lets a reviewer open one URL and re-run, live, the simulations behind my answers to a
-two-problem evaluation screen:
+# Revion · Evaluation Simulations & Eval Lab
 
-- **Problem 1, the guardrail number.** Correct an LLM judge's 9% flag rate to a true violation rate
-  (Rogan-Gladen, delta-method CI), compute Cohen's kappa, test what the estimate tracks when the judge and
-  annotators share blind spots, and design a stratified sample of 500 exact labels.
-- **Problem 2, recall is up, users are unhappy.** Test whether 8% → 11% thumbs-down is real, and show what a
-  golden set labelled only from the old system's top 20 hides.
+**Every number in my answers to a two-problem LLM-evaluation screen, re-runnable live in the browser, plus a working
+evaluation system: a real agent, LLM judges and human annotators.**
 
-Every input can be changed. Every simulation is seeded (mulberry32) and the seed is shown, so runs are
-reproducible. The results are simulations of stated toy worlds, not production data.
+[**Live demo →**](https://revion-rho.vercel.app) &nbsp;·&nbsp; [Eval Lab →](https://revion-rho.vercel.app/lab) &nbsp;·&nbsp; [Python reference](reference/python)
 
-**Live:** https://revion-rho.vercel.app
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-40%20passing-2ea043)
+![Verify](https://img.shields.io/badge/acceptance-11%2F11%20green-2ea043)
+![Groq](https://img.shields.io/badge/agent-Groq%20gpt--oss--120b-f55036)
+![Gemini](https://img.shields.io/badge/judges-Gemini-4285f4?logo=googlegemini&logoColor=white)
 
-## Eval Lab (`/lab`): a live agent, LLM judges and human annotators
+<img src="docs/screenshots/overview.png" alt="Overview: the answers as cards, each linking to its simulation" width="100%" />
 
-A working evaluation loop with real models:
+</div>
 
-- **Agent (Groq, default `openai/gpt-oss-120b`):** answers questions with tool calling (calculator, current time). There is no
-  retrieval; the two problems are in its system prompt. Every question, answer, tool call, latency and token count is stored.
-- **Golden sets:** curated questions with reference answers. Save any chat answer to a golden set, editing it first.
-- **Rubrics:** your rules. Criteria are scored 1–5, and hard rules fail an item outright. Pass or fail is computed in code
-  (mean ≥ threshold and no rule violated), not decided by the model.
-- **Benchmark studio:** choose an agent, a golden set (the agent answers fresh) or imported sessions (stored answers are
-  judged as given), a rubric, and 1–4 **Gemini** judges.
-  - Runs go one item at a time, so they can pause and resume.
-  - Reports are stored: pass rate by judge majority, per-criterion means per judge, inter-judge kappa, latency, tokens,
-    per-item reasons, CSV/JSON export, and a button to re-run failed judgments.
-- **Annotate:** humans label the same items blind (judge scores unlock only after labelling). The report shows judge-vs-human
-  agreement: Cohen's kappa, the confusion matrix, and the judge's sensitivity and specificity against humans. It also gives a
-  **Rogan-Gladen corrected pass rate**, which is Problem 1 applied to your own judge.
+---
 
-### Where the data lives
+## Contents
 
-There is no external database. The lab runs **SQLite in the browser** (sql.js, WebAssembly) and saves it to IndexedDB after every
-write, so it behaves the same locally and on Vercel. The server holds only the API keys and answers two calls: run the agent,
-and run a judge. Data belongs to the browser that created it; the dashboard can download the `.sqlite` file, load one, or reset
-to the seed data (a default agent, a "Grounded QA" rubric and a 10-item golden set).
+- [What this is](#what-this-is)
+- [Part 1 · The simulations](#part-1--the-simulations)
+- [Part 2 · Eval Lab: agent, LLM judges, human annotators](#part-2--eval-lab-agent-llm-judges-human-annotators)
+- [Architecture](#architecture)
+- [Python ↔ TypeScript parity](#python--typescript-parity)
+- [Run it locally](#run-it-locally)
+- [Project structure](#project-structure)
+- [Assumptions](#assumptions)
 
-### Setup
+---
 
-Copy `.env.example` to `.env.local` and add `GROQ_API_KEY` and `GEMINI_API_KEY`, locally and in Vercel. `LAB_ACCESS_TOKEN` is
-optional; when set, `/lab` and `/api/lab` require it, so a public URL cannot spend your keys.
+## What this is
 
-Free-tier Gemini keys are rate limited per model. `gemini-3.6-flash` allows only 20 requests a day, so the default judges are
-`gemini-3.5-flash-lite` and `gemini-3.1-flash-lite`. The studio lists every model the key can use.
+| | Part 1 · Simulations | Part 2 · Eval Lab |
+| --- | --- | --- |
+| **Purpose** | Let a reviewer re-run every number behind my written answers | Show the same ideas working on a live system |
+| **Where** | `/`, `/estimator`, `/assumption`, `/design`, `/is-it-real`, `/golden-set` | `/lab/*` |
+| **Engine** | Seeded Monte Carlo (mulberry32) streamed from Node route handlers | Groq agent, Gemini judges, SQLite in the browser |
+| **Checked by** | 11 acceptance checks, run live in the **Verify** panel and in `npm test` | Unit tests plus end-to-end runs on the live site |
 
-| Code | Role |
-| --- | --- |
-| `lib/lab/db.ts` | SQLite in the browser (sql.js), schema, IndexedDB persistence, export/import/reset |
-| `lib/lab/store.ts`, `lib/lab/handlers.ts` | typed data access, and the local `/api/lab/*` data routes |
-| `lib/lab/runner.ts`, `lib/lab/stats.ts` | benchmark runs, summaries, kappa, human agreement |
-| `lib/lab/client.ts`, `lib/lab/remote.ts` | routes data calls to the browser database and LLM calls to the server |
-| `app/api/lab/[...path]/route.ts` | server: `setup`, `models`, `answer` (agent), `judge`, `login` |
-| `lib/lab/agent.ts`, `lib/lab/groq.ts` | the Groq tool-calling agent |
-| `lib/lab/judge.ts`, `lib/lab/gemini.ts` | the Gemini rubric judge (structured JSON output) |
-| `proxy.ts` | optional access-token gate |
+> Everything in Part 1 is a simulation of a stated toy world, not production data. Every run shows its seed, and the
+> same seed gives the **same numbers in Python and TypeScript**.
 
-## Run locally
+---
 
-```sh
-npm i            # or: pnpm install
-npm run dev      # http://localhost:3000
-npm test         # unit + parity + acceptance tests (vitest)
-npm run build    # production build
+## Part 1 · The simulations
+
+### The answers
+
+| Problem | Answer | Page |
+| --- | --- | --- |
+| **1a** True violation rate | **3.4%**, 95% CI **0.2% – 6.6%** (Rogan-Gladen + delta method); specificity carries ~96% of the variance | [Estimator](https://revion-rho.vercel.app/estimator) |
+| **1b** Annotator agreement | Cohen's κ = **0.645** at 6% prevalence (0.58 – 0.73 for 5–8%) | [Assumption & kappa](https://revion-rho.vercel.app/assumption) |
+| **1c** 500 exact labels | Neyman **184 / 316**, half-width **±0.99 pts**, ~2 unflagged violations expected (P(zero) = 0.139) → Jeffreys, not Wald | [Sampling design](https://revion-rho.vercel.app/design) |
+| **2a** 8% → 11% thumbs-down | **z = 3.96**, p ≈ 7e-5, CI [1.52, 4.48] pts; significance lost at design effect ≈ **4.1** | [Is it real?](https://revion-rho.vercel.app/is-it-real) |
+| **2c** Golden-set bias | Labels only from the old top 20 → absolute recall inflated, new system's gain **understated** (27 of 27 settings) | [Golden-set bias](https://revion-rho.vercel.app/golden-set) |
+
+### Verify panel: every acceptance number, live
+
+<img src="docs/screenshots/verify.png" alt="Verify panel with 11 of 11 checks passing" width="100%" />
+
+### Charts that fill in live
+
+Every simulation streams its progress over Server-Sent Events, and every input is editable.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/estimator.png" alt="Replaying the study 20,000 times: coverage near 95%, lower bound often below zero" /><br/><sub><b>P1a</b> · Replay the study 20,000 times: coverage settles at 95%, yet the lower bound is often negative.</sub></td>
+    <td width="50%"><img src="docs/screenshots/variance-share.png" alt="Variance share bar: specificity 95.7%" /><br/><sub><b>P1a</b> · Where the interval's width comes from: specificity, not the 2M production flags.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/toy-world.png" alt="Toy world: Rogan-Gladen estimate tracks the annotators' rate, not the truth" /><br/><sub><b>P1b</b> · Toy world: the corrected estimate tracks the <i>annotators'</i> rate, not the truth.</sub></td>
+    <td><img src="docs/screenshots/coverage.png" alt="Coverage of Wald, Agresti-Coull and Jeffreys across prevalence" /><br/><sub><b>P1c</b> · Wald under-covers where zero unflagged violations are common; Jeffreys holds 95%.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/golden-set-scatter.png" alt="Per-query measured vs true recall" /><br/><sub><b>P2c</b> · Per-query measured vs true recall@10 for the old and new systems.</sub></td>
+    <td><img src="docs/screenshots/golden-set-sweep.png" alt="27-setting sweep: measured gain below true gain" /><br/><sub><b>P2c</b> · The 27-setting sweep: the measured gain is below the true gain in every setting.</sub></td>
+  </tr>
+</table>
+
+---
+
+## Part 2 · Eval Lab: agent, LLM judges, human annotators
+
+A working evaluation loop with real models. You ask an agent questions, turn good answers into a golden set, write your
+own judging rules, benchmark the agent with LLM judges, and then check the judges against human labels. That last step is
+Problem 1 applied to your own judge.
+
+```mermaid
+flowchart LR
+    A["💬 Ask the agent<br/>Groq · gpt-oss-120b"] --> B["⭐ Save to golden set<br/>edit the reference"]
+    B --> C["📏 Rubric<br/>criteria + hard rules"]
+    C --> D["🧪 Benchmark studio<br/>1–4 Gemini judges"]
+    A -.->|import sessions| D
+    D --> E["📊 Stored report<br/>pass rate · κ · latency"]
+    E --> F["🧑‍⚖️ Human annotation<br/>blind to the judges"]
+    F --> G["✅ Judge vs human<br/>κ · Se/Sp · corrected pass rate"]
 ```
 
-`npm run fixtures` regenerates the Python fixtures the tests compare against (needs only `python3`; about 90 s).
+### 1 · Chat with the agent
 
-## Pages
+Every question, answer, tool call, latency and token count is stored. Math is typeset with KaTeX.
 
-| Route | What it does |
-| --- | --- |
-| `/` | The answers as cards, and a **Verify** panel that re-runs every acceptance number on the server |
-| `/estimator` | P1a: Rogan-Gladen estimate, delta-method CI, variance shares, streamed 20,000-replay coverage check |
-| `/assumption` | P1b: kappa calculator with prevalence sensitivity; toy world comparing truth, annotators' rate and the estimate |
-| `/design` | P1c: Neyman allocation, expected half-width, P(zero unflagged), live Wald / Agresti-Coull / Jeffreys coverage |
-| `/is-it-real` | P2a: two-proportion z-test with editable counts and a design-effect slider |
-| `/golden-set` | P2c: per-query measured vs true recall, measured vs true gain, and the 27-setting sweep |
-| `/about` | Method, assumptions and the reasoning in plain language |
-| `/api/health` | Health check |
+<img src="docs/screenshots/chat.png" alt="Agent chat with typeset math, model, latency and tokens" width="100%" />
 
-## How the TypeScript maps to the Python
+### 2 · Save any answer to a golden set, after editing it
 
-`reference/python/` is the source of truth. The TypeScript is a line-by-line port. Both use the same RNG and draw
-in the same order, so **the same seed gives identical numbers in both languages**. `tests/parity.test.ts` checks
-this against JSON written by the Python scripts (`lib/__fixtures__/`).
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/save-to-golden.png" alt="Save to golden set with an editable reference answer" /><br/><sub>Edit the answer into the reference you want judged as correct.</sub></td>
+    <td width="50%"><img src="docs/screenshots/golden-sets.png" alt="Golden dataset list" /><br/><sub>Golden datasets: seed items plus ones saved from chat.</sub></td>
+  </tr>
+</table>
 
-| Python (`reference/python/`) | TypeScript | Used by |
-| --- | --- | --- |
-| `rng.py` (mulberry32, normal, binomial, gamma, beta, quantile) | `lib/stats/rng.ts` | everything |
-| `problem1_ab.py` | `lib/sim/p1ab.ts` | `/estimator`, `/assumption` (kappa), `/api/sim/replay` |
-| `problem1_b_assumption.py` | `lib/sim/toyworld.ts` | `/assumption`, `/api/sim/toyworld` |
-| `problem1_c_design.py` | `lib/sim/design.ts` | `/design`, `/api/sim/coverage` |
-| `problem2.py` | `lib/sim/p2.ts` (`twoProportion`, `goldenSet`) | `/is-it-real`, `/golden-set`, `/api/sim/golden` |
-| `problem2_direction_check.py` | `lib/sim/p2.ts` (`sweep`) | `/golden-set`, `/api/sim/golden` |
-| — | `lib/stats/special.ts` (normal CDF, Beta CDF/quantile) | browser-side Jeffreys bounds, p-values |
-| — | `lib/verify.ts` | Verify panel and `tests/acceptance.test.ts` (same assertions) |
+### 3 · Your rules for the judges
 
-Each Python script runs on its own (`python3 problem1_ab.py`) and prints its results, or JSON with `--json`.
-They use only the standard library.
+Criteria are scored 1–5, and hard rules fail an item outright. **Pass or fail is computed in code** (mean ≥ threshold and
+no rule violated), never decided by the model.
+
+<img src="docs/screenshots/rubrics.png" alt="Rubric editor with criteria, hard rules and pass threshold" width="100%" />
+
+### 4 · Benchmark studio
+
+Pick an agent, a source, a rubric and 1–4 Gemini judges:
+- **Golden set:** the agent answers every question fresh.
+- **Imported sessions:** the stored answers are judged exactly as users saw them.
+
+Runs go one item at a time, so they can pause and resume.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/studio.png" alt="Benchmark studio run configuration" /></td>
+    <td width="50%"><img src="docs/screenshots/report.png" alt="Stored benchmark report with pass rate, kappa, latency, tokens and per-criterion scores" /></td>
+  </tr>
+</table>
+
+Each item keeps every judge's per-criterion scores and reasons. In this item the agent got the 3.4% point estimate right
+but made its CI far too narrow, ignoring the calibration uncertainty. The judges **disagreed**: one passed it, the other
+failed it on a hard rule, and the human sided with the fail. That kind of disagreement is what the agreement panel below
+measures. (The agent's answer is collapsed here.)
+
+<img src="docs/screenshots/report-judges.png" alt="Report item: question, reference and two judges' scores and reasons, one pass and one fail" width="100%" />
+
+### 5 · Human annotation, and how far to trust the judges
+
+Annotators label the same items **blind**: judge scores unlock only after labelling. The report then compares humans
+with the judge majority and corrects the judges' pass rate with **Rogan-Gladen**, the estimator from Problem 1.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/annotate.png" alt="Annotation form: pass/fail, criterion scores, note" /></td>
+    <td width="50%"><img src="docs/screenshots/human-agreement.png" alt="Judge vs human: agreement, kappa, sensitivity/specificity, corrected pass rate, confusion matrix" /></td>
+  </tr>
+</table>
+
+<img src="docs/screenshots/lab-dashboard.png" alt="Eval Lab dashboard: setup status, counts, data tools, recent runs" width="100%" />
+
+---
 
 ## Architecture
 
-- Next.js App Router, TypeScript, Tailwind. Charts are plain SVG. The simulation pages need no database, keys or env vars; only the Eval Lab does.
-- Closed-form numbers (estimate, CI, kappa, allocation, z-test) are computed in the browser as inputs change.
-- Simulations run in Node.js Route Handlers (`app/api/sim/*`, `runtime = 'nodejs'`, `maxDuration = 60`) and stream
-  progress as Server-Sent Events, so charts fill in live.
-- Limits: replays default to 2,000 (20,000 on P1a) and are capped at 20,000. A run stops at 50 s with a clear
-  message, inside the 60 s `maxDuration` and well inside Vercel's current function limit (300 s default with Fluid compute).
-- Binomial draws sum Bernoullis for n ≤ 1,000. Above that they use a normal approximation rounded and clamped to
-  [0, n], which is only used for the 2,000,000 production responses.
-- Jeffreys intervals: per stratum Beta(x + ½, n − x + ½), combined with the known weights (0.09 / 0.91) by Monte
-  Carlo draws, equal-tailed 2.5% / 97.5%. The Beta quantile function is tested against scipy values.
+```mermaid
+flowchart TB
+    subgraph Browser
+        UI["Next.js pages<br/>React + plain-SVG charts"]
+        DB[("SQLite · sql.js WASM<br/>saved to IndexedDB")]
+        UI <--> DB
+    end
+    subgraph Vercel["Vercel · Node.js route handlers"]
+        SIM["/api/sim/* · /api/verify<br/>seeded simulations over SSE"]
+        LAB["/api/lab/answer · judge · models"]
+    end
+    UI -- "EventSource" --> SIM
+    UI -- "fetch" --> LAB
+    LAB --> GROQ["Groq · agent<br/>tool calling"]
+    LAB --> GEM["Gemini · judges<br/>JSON-schema output"]
+```
+
+- **Simulations** run in Node route handlers (`runtime = 'nodejs'`, `maxDuration` set) and stream progress with
+  Server-Sent Events. Replays are capped at 20,000 per run, and a run stops early with a message before the time limit.
+- **Eval Lab data** has no external database. It lives in **SQLite running in the browser** (sql.js) and is saved to
+  IndexedDB, so it works the same locally and on Vercel. The dashboard can download the `.sqlite` file, load one, or reset it.
+- **The server holds only the API keys.** It exposes two model calls: run the agent, and run a judge.
+- **Binomial draws** sum Bernoullis for n ≤ 1,000. Above that they use a clamped normal approximation, which is only
+  used for the 2,000,000 production responses. **Jeffreys** uses Beta(x+½, n−x+½) per stratum, combined by Monte Carlo
+  with the known weights; the Beta quantile function is tested against scipy.
+
+---
+
+## Python ↔ TypeScript parity
+
+[`reference/python/`](reference/python) is the source of truth, written with the standard library only. The TypeScript is a
+line-by-line port using the same RNG and the same draw order, and `tests/parity.test.ts` checks the results **draw for draw**
+against JSON written by the Python scripts.
+
+| Python | TypeScript | Used by |
+| --- | --- | --- |
+| `rng.py` | `lib/stats/rng.ts` | everything |
+| `problem1_ab.py` | `lib/sim/p1ab.ts` | `/estimator`, kappa, `/api/sim/replay` |
+| `problem1_b_assumption.py` | `lib/sim/toyworld.ts` | `/assumption`, `/api/sim/toyworld` |
+| `problem1_c_design.py` | `lib/sim/design.ts` | `/design`, `/api/sim/coverage` |
+| `problem2.py` | `lib/sim/p2.ts` | `/is-it-real`, `/golden-set` |
+| `problem2_direction_check.py` | `lib/sim/p2.ts` (`sweep`) | `/golden-set` |
+
+```sh
+cd reference/python && python3 problem1_ab.py
+# Sensitivity 0.8333  Specificity 0.9362
+# pi = 0.0340   SE = 0.0162   95% CI [0.2295%, 6.5723%]
+```
+
+---
+
+## Run it locally
+
+```sh
+pnpm install        # or: npm i
+pnpm dev            # http://localhost:3000
+pnpm test           # 40 tests: parity, acceptance, stats, lab logic
+pnpm build
+```
+
+The Eval Lab needs two keys. Copy `.env.example` to `.env.local`:
+
+| Variable | For |
+| --- | --- |
+| `GROQ_API_KEY` | the agent ([console.groq.com](https://console.groq.com/keys)) |
+| `GEMINI_API_KEY` | the judges ([aistudio.google.com](https://aistudio.google.com/apikey)) |
+| `LAB_ACCESS_TOKEN` | optional; protects `/lab` and `/api/lab` on a public URL |
+
+> Free-tier Gemini keys are rate limited per model (`gemini-3.6-flash` allows 20 requests a day), so the default judges are
+> `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite`. A report can re-run judgments that failed on quota.
+
+`pnpm fixtures` regenerates the Python fixtures (needs only `python3`; about 90 s).
+
+---
+
+## Project structure
+
+```
+app/
+  page.tsx, estimator/, assumption/, design/, is-it-real/, golden-set/, about/   Part 1 pages
+  lab/  chat/, sessions/, golden/, agents/, studio/, annotate/                     Part 2 pages
+  api/  sim/*, verify/, health/                                                   simulation routes (SSE)
+        lab/[...path]/                                                            agent + judge calls
+lib/
+  sim/     p1ab.ts, toyworld.ts, design.ts, p2.ts        ports of the Python scripts
+  stats/   rng.ts (mulberry32), special.ts (Beta/normal)
+  lab/     db.ts (browser SQLite), store.ts, handlers.ts, runner.ts, stats.ts,
+           agent.ts + groq.ts, judge.ts + gemini.ts
+  verify.ts                                              the 11 acceptance checks
+reference/python/                                        source-of-truth scripts
+tests/                                                   vitest: parity, acceptance, special, lab
+docs/screenshots/                                        the images in this README
+```
+
+---
 
 ## Assumptions
+
+<details>
+<summary><b>Simulations</b> (click to expand)</summary>
 
 1. Calibration and production traffic come from the same distribution, so the judge's sensitivity and specificity transfer.
 2. In (a) the annotators' majority label is treated as the truth; the P1b toy world relaxes this.
@@ -124,21 +272,33 @@ They use only the standard library.
 5. In (c), the 500 new labels are exact and the 9% flag rate is known, so the stratum weights are known.
 6. The coverage simulation keeps the judge's Se and Sp fixed while the true prevalence varies over 1–8%.
 7. The z-test treats ratings as independent; the design effect is the only allowance for clustering.
-8. Golden-set model: 1–10 relevant documents per query, placed independently (no top-10 slot limit); queries with
-   no judged relevant document are dropped.
-9. Toy-world ambiguous items carry one shared impression, independent of the true label. Annotators always read it;
-   the judge reads it with probability f.
+8. Golden-set model: 1–10 relevant documents per query, placed independently (no top-10 slot limit); queries with no
+   judged relevant document are dropped.
+9. Toy-world ambiguous items carry one shared impression, independent of the true label. Annotators always read it; the
+   judge reads it with probability f.
 
-## Acceptance numbers
+</details>
 
-All are checked by `npm test` and by the Verify panel:
+<details>
+<summary><b>Eval Lab</b></summary>
 
-- Se 0.8333, Sp 0.9362, π 0.0340, SE 0.0162, CI [0.23%, 6.57%]; variance shares 0.03% / 95.7% / 4.3%
-- Kappa 0.645 at 6% prevalence
-- Neyman 184 / 316; half-width 0.99 points; 1.97 expected unflagged violations; P(zero) 0.139
-- Coverage at π = 3.4%: Wald 0.909, Agresti-Coull 0.947, Jeffreys 0.946 (2,000 replays, seed 202)
-- z 3.96, p 7.4e-5, CI [1.52, 4.48] points; design-effect break-even 4.09
-- Toy-world scenarios and the golden-set sweep match the Python output exactly. In this model's grid the measured
-  gain is below the true gain in 27 of 27 settings.
+- The human label for an item is the majority of its annotators; ties count as fail. The judge verdict is the majority of
+  the judges that returned a score.
+- The corrected pass rate assumes the labelled items are representative and the humans are right; its interval is the
+  delta-method interval from Problem 1.
+- The agent has no retrieval. The two problem statements are in its system prompt as reference material.
+- Lab data belongs to the browser that created it; share it by downloading and loading the `.sqlite` file.
 
-The site's shell (sidebar, boundaries, fonts) comes from the Vercel Next.js App Router Playground (MIT, see `license.md`).
+</details>
+
+<details>
+<summary><b>Phone and light mode</b></summary>
+
+<p align="center"><img src="docs/screenshots/mobile-light.png" alt="The overview on a phone in light mode" width="320" /></p>
+
+</details>
+
+---
+
+<sub>The site's shell (sidebar, boundaries, fonts) started from the Vercel Next.js App Router Playground (MIT, see
+<code>license.md</code>).</sub>

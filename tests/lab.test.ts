@@ -81,5 +81,6 @@ describe('LaTeX cleanup', () => {
     expect(prepareMath('so \\(\\kappa = 0.645\\) and \\text{done}')).toBe('so $$\\kappa = 0.645$$ and done');
     expect(prepareMath('\\[x^2\\]')).toBe('\n$$\nx^2\n$$\n');
     expect(prepareMath('costs $5 and $10')).toBe('costs $5 and $10');
+    expect(prepareMath('\\(\\text{3.4 %}\\)')).toBe('$$\\text{3.4 \\%}$$');
   });
 });

@@ -43,7 +43,8 @@ export function prepareMath(md: string) {
     .replace(/\\\(([\s\S]*?)\\\)/g, (_, m) => `$$${m.trim()}$$`);
   return normalized
     .split(/(\$\$[\s\S]*?\$\$)/g)
-    .map((part) => (part.startsWith('$$') ? part : delatex(part)))
+    // Inside math, a bare % starts a TeX comment and breaks the formula; escape it.
+    .map((part) => (part.startsWith('$$') ? part.replace(/(^|[^\\])%/g, '$1\\%') : delatex(part)))
     .join('');
 }
 
