@@ -55,7 +55,7 @@ export function GlobalNav() {
               </div>
               <div className="flex flex-col gap-1">
                 {section.items.map((item) => (
-                  <NavLink key={item.href} item={item} close={close} isActive={pathname === item.href} />
+                  <NavLink key={item.href} item={item} close={close} isActive={pathname === item.href || (item.href.length > 4 && pathname.startsWith(`${item.href}/`))} />
                 ))}
               </div>
             </div>

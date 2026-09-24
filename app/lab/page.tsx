@@ -1,0 +1,20 @@
+import { Boundary } from '#/ui/boundary';
+import { PageTitle } from '#/ui/stat';
+import { Dashboard } from './dashboard';
+
+export const metadata = { title: 'Eval Lab' };
+
+export default function Page() {
+  return (
+    <Boundary label="Eval Lab" animateRerendering={false} kind="solid" color="blue" className="flex flex-col gap-8">
+      <PageTitle kicker="Live system" title="Agent, LLM judges and human annotators">
+        <p>
+          A retrieval agent on Groq answers from a knowledge base stored in libSQL, using local vector embeddings. Every question and
+          answer is saved. Gemini judges score golden sets or imported sessions against your rubric. Human annotators label the same
+          items, so you can see how far to trust the judges.
+        </p>
+      </PageTitle>
+      <Dashboard />
+    </Boundary>
+  );
+}

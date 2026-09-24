@@ -40,3 +40,6 @@ next-env.d.ts
 
 # python
 __pycache__/
+
+# eval lab local data (db, embedding model cache)
+/.data/

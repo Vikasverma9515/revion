@@ -2,6 +2,12 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
-  resolve: { alias: { '#': fileURLToPath(new URL('.', import.meta.url)) } },
+  resolve: {
+    alias: {
+      '#': fileURLToPath(new URL('.', import.meta.url)),
+      // 'server-only' throws outside a React server build; it is a no-op in tests.
+      'server-only': fileURLToPath(new URL('./tests/stubs/empty.ts', import.meta.url)),
+    },
+  },
   test: { include: ['tests/**/*.test.ts'] },
 });
