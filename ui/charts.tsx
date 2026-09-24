@@ -136,7 +136,7 @@ export function LineChart({
         {refY && (
           <g>
             <line x1={M.left} x2={W - M.right} y1={sy(refY.y)} y2={sy(refY.y)} stroke="var(--color-gray-400)" strokeDasharray="1 3" />
-            <text x={M.left + 6} y={sy(refY.y) - 5} className="fill-gray-400 text-[11px]">
+            <text x={M.left + 6} y={sy(refY.y) + 14} className="fill-gray-400 text-[11px]">
               {refY.label}
             </text>
           </g>
