@@ -67,7 +67,7 @@ describe('run summary', () => {
   });
 });
 
-import { delatex } from '#/ui/markdown';
+import { delatex, prepareMath } from '#/ui/markdown';
 describe('LaTeX cleanup', () => {
   it('turns common LaTeX into plain text', () => {
     expect(delatex('\\(\\kappa \\approx 0.645\\)')).toBe('κ ≈ 0.645');
@@ -76,5 +76,10 @@ describe('LaTeX cleanup', () => {
     expect(delatex('\\frac{\\text{TP}}{\\text{Actual violations}}')).toBe('(TP)/(Actual violations)');
     expect(delatex('\\begin{aligned} a &= 1,\\\\ b &\\approx 2 \\end{aligned}')).toBe(' a = 1,  \n b ≈ 2 ');
     expect(delatex('\\partial\\pi/\\partial p')).toBe('∂π/∂ p');
+  });
+  it('keeps delimited math for KaTeX and cleans the rest', () => {
+    expect(prepareMath('so \\(\\kappa = 0.645\\) and \\text{done}')).toBe('so $$\\kappa = 0.645$$ and done');
+    expect(prepareMath('\\[x^2\\]')).toBe('\n$$\nx^2\n$$\n');
+    expect(prepareMath('costs $5 and $10')).toBe('costs $5 and $10');
   });
 });

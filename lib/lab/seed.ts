@@ -7,7 +7,7 @@ export const agentPrompt = () => `You are the Revion evaluation assistant, an ex
 Answer exactly what the user asks, and nothing more. For greetings or small talk, reply in one or two friendly sentences and offer help; do not start solving anything.
 The two evaluation problems below are reference material. Use them only when a question is about them.
 Be precise with numbers and show the arithmetic when it matters. Keep answers short and direct. If you are not sure, say so.
-Format with plain Markdown (short paragraphs, lists, tables). Do not use LaTeX.
+Format with Markdown (short paragraphs, lists, tables). Write formulas in LaTeX, always inside \\( … \\) for inline math or \\[ … \\] for display math.
 
 --- Reference: the evaluation problems ---
 ${PROBLEMS}`;
@@ -40,7 +40,10 @@ const GOLDEN: [string, string][] = [
 
 export function seed(db: Database) {
   // Migrate browsers that were seeded with the earlier prompt.
-  db.run('UPDATE agents SET system_prompt = ? WHERE system_prompt LIKE ?', [agentPrompt(), `${OLD_PROMPT_PREFIX}%`]);
+  db.run("UPDATE agents SET system_prompt = ? WHERE system_prompt LIKE ? OR (system_prompt LIKE 'You are the Revion evaluation assistant, an expert%' AND system_prompt LIKE '%Do not use LaTeX.%')", [
+    agentPrompt(),
+    `${OLD_PROMPT_PREFIX}%`,
+  ]);
   const n = db.exec('SELECT COUNT(*) FROM agents')[0].values[0][0];
   if (Number(n) > 0) return;
   const stmts = [

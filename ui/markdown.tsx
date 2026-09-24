@@ -1,7 +1,10 @@
 'use client';
 // Renders model output (Markdown with tables). Raw HTML is not rendered.
+import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
 const SYMBOLS: Record<string, string> = {
   approx: '≈', times: '×', cdot: '·', pm: '±', le: '≤', leq: '≤', ge: '≥', geq: '≥', neq: '≠', to: '→', infty: '∞',
@@ -30,10 +33,26 @@ export function delatex(md: string) {
   return s;
 }
 
+/**
+ * Math in \\( … \\) and \\[ … \\] (or $$ … $$) is typeset with KaTeX. Single dollars are
+ * left alone so amounts like "$5" stay text. Stray LaTeX outside math is cleaned to plain text.
+ */
+export function prepareMath(md: string) {
+  const normalized = md
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_, m) => `$$${m.trim()}$$`);
+  return normalized
+    .split(/(\$\$[\s\S]*?\$\$)/g)
+    .map((part) => (part.startsWith('$$') ? part : delatex(part)))
+    .join('');
+}
+
 export function Markdown({ children }: { children: string }) {
   return (
-    <div className="prose prose-sm max-w-none text-gray-100 [&_code]:rounded [&_code]:bg-gray-800 [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:text-base [&_h2]:text-base [&_h3]:text-sm [&_h1,&_h2,&_h3,&_strong]:text-gray-100 [&_li]:my-0.5 [&_p]:my-2 [&_table]:my-2 [&_table]:block [&_table]:overflow-x-auto [&_td]:border [&_td]:border-gray-700 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-gray-700 [&_th]:px-2 [&_th]:py-1 [&_th]:text-gray-200 text-gray-200">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{delatex(children)}</ReactMarkdown>
+    <div className="prose prose-sm max-w-none text-gray-100 [&_code]:rounded [&_code]:bg-gray-800 [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:text-base [&_h2]:text-base [&_h3]:text-sm [&_h1,&_h2,&_h3,&_strong]:text-gray-100 [&_li]:my-0.5 [&_p]:my-2 [&_table]:my-2 [&_table]:block [&_table]:overflow-x-auto [&_td]:border [&_td]:border-gray-700 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-gray-700 [&_th]:px-2 [&_th]:py-1 [&_th]:text-gray-200 text-gray-200 [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1">
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}>
+        {prepareMath(children)}
+      </ReactMarkdown>
     </div>
   );
 }

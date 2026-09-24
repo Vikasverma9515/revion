@@ -9,5 +9,7 @@ export default defineConfig({
       'server-only': fileURLToPath(new URL('./tests/stubs/empty.ts', import.meta.url)),
     },
   },
+  // Tests never render CSS; skip the app's Tailwind PostCSS pipeline.
+  css: { postcss: { plugins: [] } },
   test: { include: ['tests/**/*.test.ts'] },
 });
